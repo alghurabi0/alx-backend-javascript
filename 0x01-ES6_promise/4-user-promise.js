@@ -1,9 +1,9 @@
-export default function signUpUser(firstName, lastName) {
+export default function signUpUser (firstName, lastName) {
   return new Promise((resolve, reject) => {
     if (!firstName || !lastName) {
-      reject("First name and last name are required");
+      reject('First name and last name are required')
     } else {
-      resolve({ firstName, lastName });
+      resolve({ firstName, lastName })
     }
-  });
+  })
 }
