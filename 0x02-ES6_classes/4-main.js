@@ -5,4 +5,3 @@ const c = new Currency("EUR", "Euro")
 console.log(c);
 const p = new Pricing(100, c)
 console.log(p);
-console.log(p.displayFullPrice());
