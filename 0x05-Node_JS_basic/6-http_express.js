@@ -11,6 +11,6 @@ app.use((req, res) => {
 });
 
 const PORT = 1245;
-app.listen(PORT)
+app.listen(PORT);
 
 module.exports = app;
