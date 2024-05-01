@@ -3,37 +3,58 @@ const fs = require('fs');
 
 const PORT = 1245;
 const HOST = 'localhost';
+const server = http.createServer();
 const DB_FILE = process.argv.length > 2 ? process.argv[2] : '';
 
-const countStudents = (dataPath) => new Promise((resolve, reject) => {
-  if (!dataPath) {
+function sendResponse(res, responseText) {
+  res.setHeader('Content-Type', 'text/plain');
+  res.setHeader('Content-Length', responseText.length);
+  res.statusCode = 200;
+  res.write(Buffer.from(responseText));
+  res.end();
+}
+
+const countStudents = (filePath) => new Promise((resolve, reject) => {
+  if (!filePath) {
     reject(new Error('Cannot load the database'));
     return;
   }
 
-  fs.readFile(dataPath, 'utf-8', (err, data) => {
+  fs.readFile(filePath, (err, data) => {
     if (err) {
       reject(new Error('Cannot load the database'));
       return;
     }
 
-    const lines = data.trim().split('\n');
-    const header = lines.shift().split(',');
-    header.pop();
+    const reportParts = [];
+    const lines = data.toString('utf-8').trim().split('\n');
+    const groups = {};
+    const fieldNames = lines[0].split(',');
+    const propNames = fieldNames.slice(0, fieldNames.length - 1);
 
-    const studentGroups = {};
-    lines.forEach((line) => {
-      const [firstname, , , field] = line.split(',');
-      if (!studentGroups[field]) studentGroups[field] = [];
-      studentGroups[field].push(firstname);
-    });
+    for (const line of lines.slice(1)) {
+      const record = line.split(',');
+      const propValues = record.slice(0, record.length - 1);
+      const field = record[record.length - 1];
 
-    const reportParts = [
-      `Number of students: ${lines.length}`,
-      ...Object.entries(studentGroups).map(([field, students]) => (
-        `Number of students in ${field}: ${students.length}. List: ${students.join(', ')}`
-      )),
-    ];
+      if (!groups[field]) {
+        groups[field] = [];
+      }
+
+      const entries = propNames.map((name, idx) => [name, propValues[idx]]);
+      groups[field].push(Object.fromEntries(entries));
+    }
+
+    const totalStudents = Object.values(groups).reduce((prev, cur) => prev + cur.length, 0);
+    reportParts.push(`Number of students: ${totalStudents}`);
+
+    for (const [field, group] of Object.entries(groups)) {
+      reportParts.push([
+        `Number of students in ${field}: ${group.length}.`,
+        'List:',
+        group.map((student) => student.firstname).join(', '),
+      ].join(' '));
+    }
 
     resolve(reportParts.join('\n'));
   });
@@ -42,37 +63,39 @@ const countStudents = (dataPath) => new Promise((resolve, reject) => {
 const routeHandlers = [
   {
     route: '/',
-    handler: (_, res) => {
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('Hello Holberton School!');
+    handler(_, res) {
+      const responseText = 'Hello Holberton School!';
+      sendResponse(res, responseText);
     },
   },
   {
     route: '/students',
-    handler: (_, res) => {
+    handler(_, res) {
+      const responseParts = ['This is the list of our students'];
       countStudents(DB_FILE)
         .then((report) => {
-          res.writeHead(200, { 'Content-Type': 'text/plain' });
-          res.end(`This is the list of our students\n${report}`);
+          responseParts.push(report);
+          sendResponse(res, responseParts.join('\n'));
         })
-        .catch((error) => {
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
-          res.end(`Error: ${error.message}\n`);
+        .catch((err) => {
+          responseParts.push(err instanceof Error ? err.message : err.toString());
+          sendResponse(res, responseParts.join('\n'));
         });
     },
   },
 ];
 
-const server = http.createServer((req, res) => {
-  const routeHandler = routeHandlers.find((handler) => handler.route === req.url);
-  if (!routeHandler) {
-    res.writeHead(404, { 'Content-Type': 'text/html' });
-    res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Error</title></head><body><pre>Cannot GET ${req.url}</pre></body></html>`);
-    return;
+server.on('request', (req, res) => {
+  for (const { route, handler } of routeHandlers) {
+    if (route === req.url) {
+      handler(req, res);
+      break;
+    }
   }
-  routeHandler.handler(req, res);
 });
 
-server.listen(PORT, HOST);
+server.listen(PORT, HOST, () => {
+  console.log(`Server listening at -> http://${HOST}:${PORT}`);
+});
 
 module.exports = server;
