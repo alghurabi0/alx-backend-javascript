@@ -73,6 +73,6 @@ const server = http.createServer((req, res) => {
   routeHandler.handler(req, res);
 });
 
-server.listen(PORT, HOST)
+server.listen(PORT, HOST);
 
 module.exports = server;
